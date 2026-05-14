@@ -23,7 +23,7 @@ Generate `CODEMAP.md` that helps Claude (and developers) quickly locate code for
 
 ### Step 0: Check for CLAUDE.md
 
-If `CLAUDE.md` exists in the project root, read it first. Note what sections it already covers (project overview, commands, conventions, tech stack). When generating CODEMAP.md, **do not repeat any of these**. Skip project overview, skip commands, skip development conventions. Focus entirely on navigation and data flow.
+If `CLAUDE.md` exists in the project root (check `CLAUDE.md` and `.claude/CLAUDE.md`), read it first. Note what sections it already covers (project overview, commands, conventions, tech stack). When generating CODEMAP.md, **do not repeat any of these**. Skip project overview, skip commands, skip development conventions. Focus entirely on navigation and data flow.
 
 ### Step 1: Discover
 
@@ -33,15 +33,15 @@ Find entry points, top-level structure, and identify the primary language/framew
 
 Count non-generated source files:
 
-- **≤ 50 files**: Use **single-layer mode** — generate everything in one CODEMAP.md
-- **> 50 files**: Use **two-layer mode** — generate a top-level CODEMAP.md with module table + task index + dependency graph, then create `CODEMAP-<module>.md` for each core business module's detailed call chains
+- **≤ 50 files**: Use **single-layer mode** — generate everything in one `.claude/CODEMAP.md`
+- **> 50 files**: Use **two-layer mode** — generate a top-level `.claude/CODEMAP.md` with module table + task index + dependency graph, then create `.claude/CODEMAP-<module>.md` for each core business module's detailed call chains
 
 Two-layer mode structure:
 ```
-CODEMAP.md                    # Top-level: modules, task index, dependencies
-CODEMAP-auth.md               # Detailed call chains for auth module
-CODEMAP-billing.md            # Detailed call chains for billing module
-CODEMAP-proxy.md              # Detailed call chains for proxy module
+.claude/CODEMAP.md                    # Top-level: modules, task index, dependencies
+.claude/CODEMAP-auth.md               # Detailed call chains for auth module
+.claude/CODEMAP-billing.md            # Detailed call chains for billing module
+.claude/CODEMAP-proxy.md              # Detailed call chains for proxy module
 ```
 
 ### Step 3: Identify Core Business Modules
@@ -120,12 +120,13 @@ This tells future Claude instances not just which diagrams to trust, but **where
 
 ### Step 6: Generate the Document
 
-Write to `CODEMAP.md` in the project root.
+Write to `.claude/CODEMAP.md` in the project root. Create the `.claude/` directory if it doesn't exist.
 
 For **single-layer mode**:
 ```markdown
 # [Project Name] — Code Map
 
+**Location**: `.claude/CODEMAP.md`
 Generated: [date]
 
 ## Core Business Modules
@@ -207,13 +208,13 @@ Format:
 - **Update checklist**: [items to check next time the skill runs]
 ```
 
-For **two-layer mode**, the top-level `CODEMAP.md` omits call chains (replaced by links to per-module files), and each `CODEMAP-<module>.md` contains only that module's detailed diagrams.
+For **two-layer mode**, the top-level `.claude/CODEMAP.md` omits call chains (replaced by links to per-module files), and each `.claude/CODEMAP-<module>.md` contains only that module's detailed diagrams.
 
 ## Managing CODEMAP Growth
 
 CODEMAP.md grows over time as the project evolves. To prevent context bloat:
 
-**Change Log with delta comparison**: When CODEMAP.md already exists, read the last Change Log entry before analyzing. Compare the current codebase against what was recorded last time. Append one row that captures the **difference** — new functions, new routes, modified business rules, removed features. If nothing changed in a business area, do not write an entry for it. Only record actual deltas, not re-tracing the same code.
+**Change Log with delta comparison**: When `.claude/CODEMAP.md` already exists, read the last Change Log entry before analyzing. Compare the current codebase against what was recorded last time. Append one row that captures the **difference** — new functions, new routes, modified business rules, removed features. If nothing changed in a business area, do not write an entry for it. Only record actual deltas, not re-tracing the same code.
 
 Example of good delta entries:
 - "AiChatFactory 新增 `OpenRouter` case，对应 handler 在 `httputil.go:310`"
@@ -224,16 +225,16 @@ Example of bad entries:
 - "分析了 AiChatFactory 函数"（这是动作，不是变化）
 - "CODEMAP 更新了"（这是空话，没说变了什么）
 
-**Section-aware threshold**: When CODEMAP.md exceeds 200 lines:
+**Section-aware threshold**: When `.claude/CODEMAP.md` exceeds 200 lines:
 1. **Change Log**: Trim to the most recent 5 entries. Older business changes belong in the Last Updated summary, not the log table.
 2. **Call Chains**: If a single flow diagram exceeds 15 nodes, split it into two diagrams (sync vs async). If a module has > 3 diagrams in total, move that module to a separate `CODEMAP-<module>.md` file and replace with a link.
 3. **Core Business Modules**: Never trim this table — it's the primary navigation anchor. If > 10 modules, split rarely-used ones into a "扩展模块" subsection.
 4. **Task Index**: Keep all entries. If an entry references a deleted file, remove it.
 5. **Module Dependencies**: Keep one diagram. Never duplicate.
 
-**When to rewrite from scratch**: If CODEMAP.md exceeds 300 lines after trimming, rewrite the entire file. Do not try to preserve sections — a full re-scan is more reliable than incremental patching at this size.
+**When to rewrite from scratch**: If `.claude/CODEMAP.md` exceeds 300 lines after trimming, rewrite the entire file. Do not try to preserve sections — a full re-scan is more reliable than incremental patching at this size.
 
-**Auto-trigger**: The skill should check line count on every run and apply trimming before writing.
+**Auto-trigger**: The skill should check `.claude/CODEMAP.md` line count on every run and apply trimming before writing.
 
 ## Tips
 
