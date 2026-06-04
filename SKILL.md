@@ -1,10 +1,11 @@
 ---
-name: code-map
+name: codemap
 description: |
   Generate a CODEMAP.md file that supplements CLAUDE.md with task-based file indexes, parallel call chain diagrams, and core business module summaries.
   Use this skill when: running /init on a codebase; user asks "where do I change X", "how does Y work", "show me the call flow", "梳理代码结构", "代码关系图", "调用链"; starting work on an unknown codebase; reviewing architecture before making changes; CLAUDE.md exists but you need deeper navigation into business logic.
   Make sure to use this skill whenever the user mentions understanding code structure, architecture diagrams, call graphs, task-based navigation, or wants a visual map of how the codebase is organized — even if they don't explicitly name this skill.
   This is NOT a CLAUDE.md replacement. CLAUDE.md covers commands, conventions, and project overview. CODEMAP.md covers: "to do task X, edit these files", "here's how data flows through the system", "these are the core business modules and what they do".
+trigger: /codemap
 ---
 
 # Code Map — Supplement CLAUDE.md with Navigation Maps
@@ -109,7 +110,7 @@ flowchart TD
 - **If you can't find an explicit call, don't guess**: Omit that link rather than infer it. Better a shorter accurate chain than a longer misleading one.
 - **Note gaps**: If a known runtime behavior (e.g., middleware order, ORM query) has no explicit source-level call, add a "未追踪" note under the diagram.
 
-Each diagram ≤ 12 nodes. Split at logical boundaries if needed.
+Each diagram ≤ 12 nodes — split at logical boundaries if needed. The 12-node limit is a readability heuristic, not a hard law: some flows are one cohesive chain (a linear pipeline where each step feeds the next) or a single decision tree whose branches only make sense together. Splitting those forces an artificial seam that hurts comprehension more than the length does. When a diagram is genuinely atomic like this, keep it whole and tag it with a no-split marker (see below) so future runs don't re-split it. Even then stay reasonable — past ~18 nodes the diagram itself is telling you the real flow is too tangled, and the fix is to simplify the code or the abstraction, not just the picture.
 
 **Confidence labels**: After EACH diagram, add a line with confidence level AND a verification hint if not high:
 - `<!-- confidence: high — explicit static calls only -->`
@@ -118,9 +119,26 @@ Each diagram ≤ 12 nodes. Split at logical boundaries if needed.
 
 This tells future Claude instances not just which diagrams to trust, but **where to verify** before acting on them.
 
+**No-split marker**: When you deliberately keep a diagram whole despite exceeding the node limit, record why on the same comment-line style as confidence:
+- `<!-- no-split: linear ingest→validate→enrich→persist pipeline; splitting would orphan the data dependency between steps -->`
+
+This is a signal to future runs (and the trimming rules below): the size was a judgment call, not an oversight — respect it unless the underlying flow itself changed. A no-split note without a real reason is just an excuse to dump a tangled diagram; if you can't name why the flow is atomic, it probably isn't, and you should split it.
+
 ### Step 6: Generate the Document
 
 Write to `.claude/CODEMAP.md` in the project root. Create the `.claude/` directory if it doesn't exist.
+
+### Step 7: Wire into CLAUDE.md
+
+After writing CODEMAP.md, **ensure CLAUDE.md references it** so future Claude instances load it automatically.
+
+Read the project's `CLAUDE.md` (root or `.claude/CLAUDE.md`). Check if it already contains a line instructing to read `.claude/CODEMAP.md`. If not, add one right after the project overview / before the first content section. The line should be:
+
+```
+**Before any code editing task, read `.claude/CODEMAP.md`** — it contains task-based file indexes, call chain diagrams, and module entry points you need to be productive.
+```
+
+Do NOT overwrite CLAUDE.md — only append this reference if it is missing.
 
 For **single-layer mode**:
 ```markdown
@@ -167,10 +185,11 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    [decision tree with branching, ≤ 12 nodes]
+    [decision tree with branching — a tree whose branches share one entry condition can stay whole past 12 nodes if tagged no-split]
 ```
 
 <!-- confidence: high — explicit switch case -->
+<!-- no-split: single routing decision tree; branches share the same entry condition and lose meaning if separated -->
 
 ## Module Dependencies
 
@@ -197,7 +216,7 @@ Format:
 **Rules:**
 - **Business Area**: High-level area (AI 聊天, 计费, 渠道, 代理商, 企业后台, etc.)
 - **Change**: What business logic changed — e.g., "新增语音模型路由", "计费增加 owner 钱包校验", "渠道选择新增 protocol 匹配"
-- Do NOT write "traced X function" or "analyzed Y file" — those are analysis actions, not business changes
+- **Name the core function when its behavior changed** — "PostConsume 新增企业成员共享池扣减分支" pins the delta to a specific entry point, which is exactly what makes the log useful for navigation. What to avoid is logging the *analysis action* ("traced X function", "analyzed Y file") instead of the *behavior delta* — so name the function, but say what it now does differently, not that you looked at it.
 - Keep the most recent 5 entries. When trimming, drop oldest first.
 
 ## Last Updated
@@ -227,7 +246,7 @@ Example of bad entries:
 
 **Section-aware threshold**: When `.claude/CODEMAP.md` exceeds 200 lines:
 1. **Change Log**: Trim to the most recent 5 entries. Older business changes belong in the Last Updated summary, not the log table.
-2. **Call Chains**: If a single flow diagram exceeds 15 nodes, split it into two diagrams (sync vs async). If a module has > 3 diagrams in total, move that module to a separate `CODEMAP-<module>.md` file and replace with a link.
+2. **Call Chains**: If a single flow diagram exceeds 15 nodes, split it into two diagrams (sync vs async) — **unless it carries a `<!-- no-split: ... -->` marker**, in which case leave it whole and trust the recorded reason (only re-evaluate if the underlying flow changed). If a module has > 3 diagrams in total, move that module to a separate `CODEMAP-<module>.md` file and replace with a link.
 3. **Core Business Modules**: Never trim this table — it's the primary navigation anchor. If > 10 modules, split rarely-used ones into a "扩展模块" subsection.
 4. **Task Index**: Keep all entries. If an entry references a deleted file, remove it.
 5. **Module Dependencies**: Keep one diagram. Never duplicate.
@@ -239,7 +258,7 @@ Example of bad entries:
 ## Tips
 
 - **Never repeat CLAUDE.md**: If CLAUDE.md already covers the project overview, skip it. Focus on navigation and data flow.
-- **Diagrams should be small**: ≤ 12 nodes per Mermaid diagram. Split into multiple diagrams if needed.
+- **Diagrams should be small**: ≤ 12 nodes per Mermaid diagram, split if needed — but a genuinely atomic flow (linear pipeline, single decision tree) can stay whole if you tag it `<!-- no-split: reason -->`. The limit serves readability; don't let it carve a cohesive flow in half, and don't use no-split to excuse a tangle.
 - **Task index is the most important section**: Developers search by task first. Make it precise with file paths, function names, and line numbers.
 - **Skip generated code**: Don't trace into `.gen.go`, migrations, ORM output, etc.
 - **Use real file paths with line numbers**: Not "module/controller" — `controller/aichat/default.go:201`.
