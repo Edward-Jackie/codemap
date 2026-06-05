@@ -32,7 +32,7 @@ Find entry points, top-level structure, and identify the primary language/framew
 
 ### Step 2: Layered Mode Decision
 
-Count non-generated source files:
+Count non-generated source files — run `scripts/count_sources.sh [project_root]` (bundled with this skill) for a deterministic count, per-language breakdown, and layering hint, instead of eyeballing it. Add project-specific generated paths via `CODEMAP_EXCLUDE='regex'`. The thresholds:
 
 - **≤ 50 files**: Use **single-layer mode** — generate everything in one `.claude/CODEMAP.md`
 - **> 50 files**: Use **two-layer mode** — generate a top-level `.claude/CODEMAP.md` with module table + task index + dependency graph, then create `.claude/CODEMAP-<module>.md` for each core business module's detailed call chains
@@ -127,6 +127,16 @@ This is a signal to future runs (and the trimming rules below): the size was a j
 ### Step 6: Generate the Document
 
 Write to `.claude/CODEMAP.md` in the project root. Create the `.claude/` directory if it doesn't exist.
+
+**Preserve human-authored content.** A live CODEMAP is co-maintained: people hand-add hard-won Pitfalls, invariants ("铁律"), and Preconditions that cannot be re-derived from source. When `.claude/CODEMAP.md` already exists, **back it up to `.claude/CODEMAP.md.bak` first**, then **never delete or rewrite anything inside a manual-protection marker**:
+
+```
+<!-- manual: keep — hand-authored, do not auto-rewrite -->
+... human notes / pitfalls / invariants ...
+<!-- /manual -->
+```
+
+Regenerate only the auto-traced sections (module table, call chains, dependency graph) *around* these blocks. When you add a Pitfall or invariant yourself that future runs must keep, wrap it in the same marker.
 
 ### Step 7: Wire into CLAUDE.md
 
@@ -256,26 +266,22 @@ Example of bad entries:
 - "分析了 AiChatFactory 函数"（这是动作，不是变化）
 - "CODEMAP 更新了"（这是空话，没说变了什么）
 
-**Section-aware threshold**: When `.claude/CODEMAP.md` exceeds 200 lines:
+**Section-aware threshold**: When `.claude/CODEMAP.md` exceeds 200 lines, trim as below — but **`<!-- manual -->` blocks and hand-authored Pitfalls / Preconditions / invariants are exempt from every trimming rule here**:
 1. **Change Log**: Trim to the most recent 5 entries. Older business changes belong in the Last Updated summary, not the log table.
 2. **Call Chains**: If a single flow diagram exceeds 15 nodes, split it into two diagrams (sync vs async) — **unless it carries a `<!-- no-split: ... -->` marker**, in which case leave it whole and trust the recorded reason (only re-evaluate if the underlying flow changed). If a module has > 3 diagrams in total, move that module to a separate `CODEMAP-<module>.md` file and replace with a link.
 3. **Core Business Modules**: Never trim this table — it's the primary navigation anchor. If > 10 modules, split rarely-used ones into a "扩展模块" subsection.
 4. **Task Index**: Keep all entries. If an entry references a deleted file, remove it.
 5. **Module Dependencies**: Keep one diagram. Never duplicate.
 
-**When to rewrite from scratch**: If `.claude/CODEMAP.md` exceeds 300 lines after trimming, rewrite the entire file. Do not try to preserve sections — a full re-scan is more reliable than incremental patching at this size.
+**Never full-rewrite over human content**: Even when `.claude/CODEMAP.md` is large or stale, do NOT blow the whole file away. Always work incrementally: back up to `.claude/CODEMAP.md.bak`, keep every `<!-- manual -->` block and every hand-authored Pitfall / Precondition / invariant **verbatim**, and re-scan only the auto-generated sections (module table, call chains, dependency graph) around them. A "full re-scan" that drops human-added pitfalls trades a few tokens for exactly the knowledge that is most expensive to recover. If the auto-generated sections themselves have grown unwieldy, split modules into `CODEMAP-<module>.md` rather than deleting.
 
 **Auto-trigger**: The skill should check `.claude/CODEMAP.md` line count on every run and apply trimming before writing.
 
 ## Tips
 
-- **Never repeat CLAUDE.md**: If CLAUDE.md already covers the project overview, skip it. Focus on navigation and data flow.
-- **Diagrams should be small**: ≤ 12 nodes per Mermaid diagram, split if needed — but a genuinely atomic flow (linear pipeline, single decision tree) can stay whole if you tag it `<!-- no-split: reason -->`. The limit serves readability; don't let it carve a cohesive flow in half, and don't use no-split to excuse a tangle.
-- **Task index is the most important section**: Developers search by task first. Make it precise with file paths, function names, and line numbers.
-- **Skip generated code**: Don't trace into `.gen.go`, migrations, ORM output, etc.
-- **Anchor on file path + function name; line numbers are a hint, not truth**: Write `controller/aichat/default.go:201 Completions()`, not bare "module/controller". The function name is the durable anchor; the `:201` is a best-effort fast-jump that goes stale on the next edit. On every rerun, re-verify cited line numbers against the named symbol and fix the drifted ones (see Step 8).
-- **Only trace explicit calls**: Function A calls function B, switch case, interface impl. Do NOT trace decorators, reflection, event bus, middleware auto-registration, ORM hooks. If you can't find it in source, omit it.
-- **Add confidence + verify**: Every diagram gets confidence (high/medium/low). If not high, add a `→ verify:` hint telling Claude where to check before acting.
-- **Task Index needs preconditions + pitfalls**: List what must be true before the task works, and what edge case has burned someone. This is the difference between "edit these files" and "edit these files, and don't forget X".
-- **Add blind spots**: After each Call Chain diagram, add a `blind spots` note listing what the chain does NOT cover — no retry, no test, upstream timeout behavior, etc. Knowing what's missing is as important as knowing what's there.
-- **Split by flow type**: Control flow (who calls who) and data flow (how data transforms) get separate diagrams. Parallel/async branches get their own diagram or use subgraph grouping.
+The Process steps above are the detail; these are the four things that most often get dropped:
+
+- **Never repeat CLAUDE.md**: skip anything it already covers (overview, commands, conventions); spend the space on navigation and data flow.
+- **Task Index is the most important section**: developers search by task first — keep it precise (file path + function name) with preconditions and pitfalls, not just "edit these files".
+- **Anchor on file path + function name; line numbers are a hint, not truth**: write `controller/aichat/default.go:201 Completions()`; the name is the durable anchor, re-verify drifted line numbers on every rerun (Step 8).
+- **Add blind spots**: after each Call Chain, note what it does NOT cover (no retry, no test, upstream-timeout behavior) — the gaps matter as much as the chain.
