@@ -18,7 +18,7 @@ Generate `CODEMAP.md` that helps Claude (and developers) quickly locate code for
 2. **Parallel call chains via Mermaid**: Text can't show parallel branches well — use Mermaid subgraphs to show concurrent flows
 3. **Core modules, concise**: Each business module gets ≤ 3 lines: responsibility, key files, key functions
 4. **CLAUDE.md aware**: Read CLAUDE.md first, skip what it already covers, only add new navigation-level content
-5. **Function-name primary, line-number assist**: Anchor every reference on `file path + function/symbol name` — that's the stable identifier. Append a line number only as a fast-jump hint, never the source of truth: line numbers drift on every upstream edit and fail *silently* (the file still opens, the line just points elsewhere). When a line number and the named symbol disagree, trust the name and re-locate by grep.
+5. **Function-name anchors, never line numbers**: Reference code as `file path + function/symbol name` only — **do not store line numbers**. A line number is a *derived, decaying* value: it's meaningless the moment code moves and it fails *silently* (points you at the wrong line, no error). The symbol name is stable and greppable. When you actually want a line to jump to, compute it **fresh** with `scripts/where.sh <file> <symbol>` rather than trusting a stored number.
 
 ## Process
 
@@ -50,27 +50,27 @@ Two-layer mode structure:
 Don't list every directory. Identify the **business modules** — groups of files that serve a specific domain purpose. For each:
 
 - **Responsibility**: 1 line what it does
-- **Key files**: 2-4 file paths (with line numbers for entry functions)
+- **Key files**: 2-4 file paths, each paired with its entry function name (no line numbers)
 - **Key functions**: 2-3 function names that are the entry points
 
 Example:
 ```
 | 模块 | 职责 | 关键文件 | 入口函数 |
 |------|------|---------|---------|
-| AI 聊天 | 多模型路由 + SSE 转发 | `controller/aichat/default.go`, `service/aichatService/default.go:37`, `lib/utils/httputil/httputil.go:238` | `Completions()`, `AiChatFactory()`, `FlowHttpPost()` |
+| AI 聊天 | 多模型路由 + SSE 转发 | `controller/aichat/default.go`, `service/aichatService/default.go`, `lib/utils/httputil/httputil.go` | `Completions()`, `AiChatFactory()`, `FlowHttpPost()` |
 ```
 
 ### Step 4: Build Task Index
 
-For each major task a developer might want to do, list the files to edit **with line numbers**, **preconditions**, and **pitfalls**:
+For each major task a developer might want to do, list the files to edit — path + the **function/symbol** to touch (no line numbers) — plus **preconditions** and **pitfalls**:
 
 ```markdown
 ## Task Index
 
 ### To add a new AI provider
-1. `internal/service/aichatService/default.go:37` — add case to `AiChatFactory()`, implement `ChatStreamModel` interface
-2. `lib/utils/httputil/httputil.go:238` — add case to `FlowHttpPost()` switch, write `*HandleStreamResponse()`
-3. `internal/consts/aiModel.go:39` — add model constant to `ModelMapping`, update `IsBailianModel()` if needed
+1. `internal/service/aichatService/default.go` → `AiChatFactory()` — add case, implement `ChatStreamModel` interface
+2. `lib/utils/httputil/httputil.go` → `FlowHttpPost()` — add switch case, write `*HandleStreamResponse()`
+3. `internal/consts/aiModel.go` → `ModelMapping` — add model constant, update `IsBailianModel()` if needed
 
 **Precondition**: Confirm upstream API is OpenAI-compatible. If not, need custom request/response structs.
 **Pitfall**: `FlowHttpPost` has no default fallback — new cases must be explicitly listed, or they fall through to `BailianHandleStreamResponse`.
@@ -155,7 +155,7 @@ Do NOT overwrite CLAUDE.md — only append this reference if it is missing.
 Tracing call chains from source is exactly where an LLM hallucinates, so don't ship on self-rated confidence alone — **verify a sample before considering the map done**:
 
 1. **High-confidence edges**: for every diagram tagged `confidence: high`, pick at least one edge (caller → callee) and confirm the call literally exists — `grep` the callee inside the caller's file/function. If it isn't there, fix the edge or downgrade the label. A `high` you never checked is a `medium` in disguise.
-2. **Task Index symbols**: for each entry, confirm the named function/symbol still exists at (or near) the cited path. Correct stale line numbers against the symbol; drop entries whose symbol is gone.
+2. **Task Index symbols**: for each entry, confirm the named function/symbol still exists in the cited file (`scripts/where.sh <file> <symbol>` locates it). Drop entries whose symbol is gone.
 3. **no-split markers**: confirm each `<!-- no-split -->` reason still matches the current flow.
 
 Record what you actually checked under **Last Updated → Update checklist**, so the next run knows what was verified vs. assumed. Catching one fabricated call here is worth more than tracing ten more chains you never verify.
@@ -176,7 +176,7 @@ Generated: [date]
 ## Task Index
 
 ### [Task 1: e.g., "Add a new AI provider"]
-[Numbered list of files to edit + what to change in each, with line numbers]
+[Numbered list of files to edit + the function/symbol to touch in each — no line numbers]
 
 ### [Task 2]
 ...
@@ -289,5 +289,5 @@ The Process steps above are the detail; these are the four things that most ofte
 
 - **Never repeat CLAUDE.md**: skip anything it already covers (overview, commands, conventions); spend the space on navigation and data flow.
 - **Task Index is the most important section**: developers search by task first — keep it precise (file path + function name) with preconditions and pitfalls, not just "edit these files".
-- **Anchor on file path + function name; line numbers are a hint, not truth**: write `controller/aichat/default.go:201 Completions()`; the name is the durable anchor, re-verify drifted line numbers on every rerun (Step 8).
+- **Anchor on file path + function name, never a line number**: write `controller/aichat/default.go → Completions()`. A stored line number decays the moment code moves; when you want a line, compute it fresh with `scripts/where.sh <file> <symbol>`.
 - **Add blind spots**: after each Call Chain, note what it does NOT cover (no retry, no test, upstream-timeout behavior) — the gaps matter as much as the chain.
