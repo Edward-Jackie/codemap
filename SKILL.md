@@ -18,7 +18,7 @@ Generate `CODEMAP.md` that helps Claude (and developers) quickly locate code for
 2. **Parallel call chains via Mermaid**: Text can't show parallel branches well — use Mermaid subgraphs to show concurrent flows
 3. **Core modules, concise**: Each business module gets ≤ 3 lines: responsibility, key files, key functions
 4. **CLAUDE.md aware**: Read CLAUDE.md first, skip what it already covers, only add new navigation-level content
-5. **Line-number precise**: Task Index file paths include function line numbers for direct navigation
+5. **Function-name primary, line-number assist**: Anchor every reference on `file path + function/symbol name` — that's the stable identifier. Append a line number only as a fast-jump hint, never the source of truth: line numbers drift on every upstream edit and fail *silently* (the file still opens, the line just points elsewhere). When a line number and the named symbol disagree, trust the name and re-locate by grep.
 
 ## Process
 
@@ -139,6 +139,18 @@ Read the project's `CLAUDE.md` (root or `.claude/CLAUDE.md`). Check if it alread
 ```
 
 Do NOT overwrite CLAUDE.md — only append this reference if it is missing.
+
+### Step 8: Spot-check before trusting
+
+Tracing call chains from source is exactly where an LLM hallucinates, so don't ship on self-rated confidence alone — **verify a sample before considering the map done**:
+
+1. **High-confidence edges**: for every diagram tagged `confidence: high`, pick at least one edge (caller → callee) and confirm the call literally exists — `grep` the callee inside the caller's file/function. If it isn't there, fix the edge or downgrade the label. A `high` you never checked is a `medium` in disguise.
+2. **Task Index symbols**: for each entry, confirm the named function/symbol still exists at (or near) the cited path. Correct stale line numbers against the symbol; drop entries whose symbol is gone.
+3. **no-split markers**: confirm each `<!-- no-split -->` reason still matches the current flow.
+
+Record what you actually checked under **Last Updated → Update checklist**, so the next run knows what was verified vs. assumed. Catching one fabricated call here is worth more than tracing ten more chains you never verify.
+
+The output document follows this structure.
 
 For **single-layer mode**:
 ```markdown
@@ -261,7 +273,7 @@ Example of bad entries:
 - **Diagrams should be small**: ≤ 12 nodes per Mermaid diagram, split if needed — but a genuinely atomic flow (linear pipeline, single decision tree) can stay whole if you tag it `<!-- no-split: reason -->`. The limit serves readability; don't let it carve a cohesive flow in half, and don't use no-split to excuse a tangle.
 - **Task index is the most important section**: Developers search by task first. Make it precise with file paths, function names, and line numbers.
 - **Skip generated code**: Don't trace into `.gen.go`, migrations, ORM output, etc.
-- **Use real file paths with line numbers**: Not "module/controller" — `controller/aichat/default.go:201`.
+- **Anchor on file path + function name; line numbers are a hint, not truth**: Write `controller/aichat/default.go:201 Completions()`, not bare "module/controller". The function name is the durable anchor; the `:201` is a best-effort fast-jump that goes stale on the next edit. On every rerun, re-verify cited line numbers against the named symbol and fix the drifted ones (see Step 8).
 - **Only trace explicit calls**: Function A calls function B, switch case, interface impl. Do NOT trace decorators, reflection, event bus, middleware auto-registration, ORM hooks. If you can't find it in source, omit it.
 - **Add confidence + verify**: Every diagram gets confidence (high/medium/low). If not high, add a `→ verify:` hint telling Claude where to check before acting.
 - **Task Index needs preconditions + pitfalls**: List what must be true before the task works, and what edge case has burned someone. This is the difference between "edit these files" and "edit these files, and don't forget X".
