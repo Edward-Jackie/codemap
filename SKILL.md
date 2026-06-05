@@ -239,7 +239,7 @@ Format:
 - **Business Area**: High-level area (AI 聊天, 计费, 渠道, 代理商, 企业后台, etc.)
 - **Change**: What business logic changed — e.g., "新增语音模型路由", "计费增加 owner 钱包校验", "渠道选择新增 protocol 匹配"
 - **Name the core function when its behavior changed** — "PostConsume 新增企业成员共享池扣减分支" pins the delta to a specific entry point, which is exactly what makes the log useful for navigation. What to avoid is logging the *analysis action* ("traced X function", "analyzed Y file") instead of the *behavior delta* — so name the function, but say what it now does differently, not that you looked at it.
-- Keep the most recent 5 entries. When trimming, drop oldest first.
+- Keep the most recent 20 entries. When trimming, drop oldest first.
 
 ## Last Updated
 
@@ -267,7 +267,7 @@ Example of bad entries:
 - "CODEMAP 更新了"（这是空话，没说变了什么）
 
 **Section-aware threshold**: When `.claude/CODEMAP.md` exceeds 200 lines, trim as below — but **anything inside a `<!-- manual -->` block is exempt from every trimming rule here**:
-1. **Change Log**: Trim to the most recent 5 entries. Older business changes belong in the Last Updated summary, not the log table.
+1. **Change Log**: Trim to the most recent 20 entries. Older business changes belong in the Last Updated summary, not the log table.
 2. **Call Chains**: If a single flow diagram exceeds 15 nodes, split it into two diagrams (sync vs async) — **unless it carries a `<!-- no-split: ... -->` marker**, in which case leave it whole and trust the recorded reason (only re-evaluate if the underlying flow changed). If a module has > 3 diagrams in total, move that module to a separate `CODEMAP-<module>.md` file and replace with a link.
 3. **Core Business Modules**: Never trim this table — it's the primary navigation anchor. If > 10 modules, split rarely-used ones into a "扩展模块" subsection.
 4. **Task Index**: Keep all entries. If an entry references a deleted file, remove it.
