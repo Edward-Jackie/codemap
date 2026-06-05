@@ -253,7 +253,7 @@ Each log file/section uses this format and rules:
 ```
 
 **Rules:**
-- **Change**: state what business logic changed and **name the core function** whose behavior changed ("PostConsume 新增企业成员共享池扣减分支") — pin the delta to an entry point; never log the analysis action ("traced X", "analyzed Y").
+- **Change**: state what business logic changed and **name the core function/symbol** whose behavior changed ("PostConsume 新增企业成员共享池扣减分支") — pin the delta to an entry point. **Name the function, never a line number**: the log is historical, so a line number recorded today is meaningless once the code moves, whereas a function name stays greppable. Never log the analysis action ("traced X", "analyzed Y").
 - **Keep the most recent 20 entries per log file/section**; when trimming, drop oldest first — older ones fold into that file's `Last Updated` summary.
 - Wrap a milestone entry in `<!-- manual -->` to exempt it from trimming.
 
@@ -263,9 +263,9 @@ CODEMAP.md grows over time as the project evolves. To prevent context bloat:
 
 **Change Log with delta comparison**: Before analyzing, read the last entry of the relevant log — `.claude/CODEMAP-changelog.md` (single-layer) or the `## Change Log` section of each `CODEMAP-<module>.md` (two-layer). Compare the current codebase against what was recorded last time. Append one row per changed business area capturing the **difference** — new functions, new routes, modified rules, removed features. If a business area is unchanged, write nothing for it. Only record actual deltas, not re-tracing the same code.
 
-Example of good delta entries:
-- "AiChatFactory 新增 `OpenRouter` case，对应 handler 在 `httputil.go:310`"
-- "billing_service.go:552 PostConsume 新增企业成员共享池扣减分支"
+Example of good delta entries (name the function, never a line number):
+- "AiChatFactory 新增 `OpenRouter` case，handler 为 `httputil.go` 的 `OpenRouterHandleStreamResponse`"
+- "`billing_service.go` PostConsume 新增企业成员共享池扣减分支"
 - "CompletionsV2 IntentType 路由新增 case 7 → 语音模型"
 
 Example of bad entries:
