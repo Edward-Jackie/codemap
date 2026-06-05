@@ -266,14 +266,14 @@ Example of bad entries:
 - "分析了 AiChatFactory 函数"（这是动作，不是变化）
 - "CODEMAP 更新了"（这是空话，没说变了什么）
 
-**Section-aware threshold**: When `.claude/CODEMAP.md` exceeds 200 lines, trim as below — but **`<!-- manual -->` blocks and hand-authored Pitfalls / Preconditions / invariants are exempt from every trimming rule here**:
+**Section-aware threshold**: When `.claude/CODEMAP.md` exceeds 200 lines, trim as below — but **anything inside a `<!-- manual -->` block is exempt from every trimming rule here**:
 1. **Change Log**: Trim to the most recent 5 entries. Older business changes belong in the Last Updated summary, not the log table.
 2. **Call Chains**: If a single flow diagram exceeds 15 nodes, split it into two diagrams (sync vs async) — **unless it carries a `<!-- no-split: ... -->` marker**, in which case leave it whole and trust the recorded reason (only re-evaluate if the underlying flow changed). If a module has > 3 diagrams in total, move that module to a separate `CODEMAP-<module>.md` file and replace with a link.
 3. **Core Business Modules**: Never trim this table — it's the primary navigation anchor. If > 10 modules, split rarely-used ones into a "扩展模块" subsection.
 4. **Task Index**: Keep all entries. If an entry references a deleted file, remove it.
 5. **Module Dependencies**: Keep one diagram. Never duplicate.
 
-**Never full-rewrite over human content**: Even when `.claude/CODEMAP.md` is large or stale, do NOT blow the whole file away. Always work incrementally: back up to `.claude/CODEMAP.md.bak`, keep every `<!-- manual -->` block and every hand-authored Pitfall / Precondition / invariant **verbatim**, and re-scan only the auto-generated sections (module table, call chains, dependency graph) around them. A "full re-scan" that drops human-added pitfalls trades a few tokens for exactly the knowledge that is most expensive to recover. If the auto-generated sections themselves have grown unwieldy, split modules into `CODEMAP-<module>.md` rather than deleting.
+**Never full-rewrite over human content**: Even when `.claude/CODEMAP.md` is large or stale, do NOT blow the whole file away. Always work incrementally: back up to `.claude/CODEMAP.md.bak`, keep every `<!-- manual -->` block **verbatim**, and re-scan only the auto-generated sections (module table, call chains, dependency graph) around them. If while re-scanning you spot a human-added Pitfall/invariant that isn't yet wrapped in a `<!-- manual -->` block, **wrap it in one rather than letting the re-scan drop it** — don't silently overwrite knowledge that's expensive to recover. If the auto-generated sections themselves have grown unwieldy, split modules into `CODEMAP-<module>.md` rather than deleting.
 
 **Auto-trigger**: The skill should check `.claude/CODEMAP.md` line count on every run and apply trimming before writing.
 
