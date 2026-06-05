@@ -39,10 +39,10 @@ Count non-generated source files — run `scripts/count_sources.sh [project_root
 
 Two-layer mode structure:
 ```
-.claude/CODEMAP.md                    # Top-level: modules, task index, dependencies
-.claude/CODEMAP-auth.md               # Detailed call chains for auth module
-.claude/CODEMAP-billing.md            # Detailed call chains for billing module
-.claude/CODEMAP-proxy.md              # Detailed call chains for proxy module
+.claude/CODEMAP.md                    # Top-level: modules, task index, dependencies (no global change log)
+.claude/CODEMAP-auth.md               # auth module: call chains + that module's Change Log
+.claude/CODEMAP-billing.md            # billing module: call chains + that module's Change Log
+.claude/CODEMAP-proxy.md              # proxy module: call chains + that module's Change Log
 ```
 
 ### Step 3: Identify Core Business Modules
@@ -224,22 +224,7 @@ flowchart TD
 
 ## Change Log
 
-Append one entry per skill run. This tracks **business logic changes observed in the source code**, NOT the skill's analysis actions. Each entry records what the codebase *does differently* compared to the last run.
-
-Format:
-```
-| Date | Business Area | Change |
-|------|---------------|--------|
-| 2026-05-13 | Initial | CODEMAP created — AI chat routing (12 providers), billing (pre-consume + post-consume), agent system |
-| 2026-05-20 | AI 聊天 | CompletionsV2 新增 IntentType=7 路由到语音模型，Skill 路由表新增 3 个语音类 skill |
-| 2026-06-01 | 计费 | PostConsume 新增企业成员共享池扣减逻辑，PreConsume 增加 owner 钱包双校验 |
-```
-
-**Rules:**
-- **Business Area**: High-level area (AI 聊天, 计费, 渠道, 代理商, 企业后台, etc.)
-- **Change**: What business logic changed — e.g., "新增语音模型路由", "计费增加 owner 钱包校验", "渠道选择新增 protocol 匹配"
-- **Name the core function when its behavior changed** — "PostConsume 新增企业成员共享池扣减分支" pins the delta to a specific entry point, which is exactly what makes the log useful for navigation. What to avoid is logging the *analysis action* ("traced X function", "analyzed Y file") instead of the *behavior delta* — so name the function, but say what it now does differently, not that you looked at it.
-- Keep the most recent 20 entries. When trimming, drop oldest first.
+Not kept in this file — see **"Where the Change Log lives"** below. The main `CODEMAP.md` carries navigation only; the log is offloaded to `CODEMAP-changelog.md` (single-layer) or each `CODEMAP-<module>.md` (two-layer).
 
 ## Last Updated
 
@@ -249,13 +234,34 @@ Format:
 - **Update checklist**: [items to check next time the skill runs]
 ```
 
-For **two-layer mode**, the top-level `.claude/CODEMAP.md` omits call chains (replaced by links to per-module files), and each `.claude/CODEMAP-<module>.md` contains only that module's detailed diagrams.
+For **two-layer mode**, the top-level `.claude/CODEMAP.md` omits call chains (replaced by links to per-module files), and each `.claude/CODEMAP-<module>.md` contains that module's detailed diagrams **plus that module's own Change Log section**.
+
+## Where the Change Log lives
+
+The Change Log is **not** kept in the main `CODEMAP.md`. The main file is read before every coding task (for navigation), but the log is only consulted when re-running the skill or auditing history — so it's offloaded to keep navigation reads lean:
+
+- **single-layer** → one file `.claude/CODEMAP-changelog.md`
+- **two-layer** → no global log; each business change is recorded in **its module's own** `.claude/CODEMAP-<module>.md` (e.g. a billing change → the `## Change Log` section at the bottom of `CODEMAP-billing.md`). A cross-cutting change is logged under whichever module owns its entry point.
+
+Each log file/section uses this format and rules:
+
+```
+| Date | Business Area | Change |
+|------|---------------|--------|
+| 2026-05-13 | Initial | CODEMAP created — AI chat routing, billing, agent system |
+| 2026-06-01 | 计费 | PostConsume 新增企业成员共享池扣减分支（billing_service.go PostConsume） |
+```
+
+**Rules:**
+- **Change**: state what business logic changed and **name the core function** whose behavior changed ("PostConsume 新增企业成员共享池扣减分支") — pin the delta to an entry point; never log the analysis action ("traced X", "analyzed Y").
+- **Keep the most recent 20 entries per log file/section**; when trimming, drop oldest first — older ones fold into that file's `Last Updated` summary.
+- Wrap a milestone entry in `<!-- manual -->` to exempt it from trimming.
 
 ## Managing CODEMAP Growth
 
 CODEMAP.md grows over time as the project evolves. To prevent context bloat:
 
-**Change Log with delta comparison**: When `.claude/CODEMAP.md` already exists, read the last Change Log entry before analyzing. Compare the current codebase against what was recorded last time. Append one row that captures the **difference** — new functions, new routes, modified business rules, removed features. If nothing changed in a business area, do not write an entry for it. Only record actual deltas, not re-tracing the same code.
+**Change Log with delta comparison**: Before analyzing, read the last entry of the relevant log — `.claude/CODEMAP-changelog.md` (single-layer) or the `## Change Log` section of each `CODEMAP-<module>.md` (two-layer). Compare the current codebase against what was recorded last time. Append one row per changed business area capturing the **difference** — new functions, new routes, modified rules, removed features. If a business area is unchanged, write nothing for it. Only record actual deltas, not re-tracing the same code.
 
 Example of good delta entries:
 - "AiChatFactory 新增 `OpenRouter` case，对应 handler 在 `httputil.go:310`"
@@ -267,7 +273,7 @@ Example of bad entries:
 - "CODEMAP 更新了"（这是空话，没说变了什么）
 
 **Section-aware threshold**: When `.claude/CODEMAP.md` exceeds 200 lines, trim as below — but **anything inside a `<!-- manual -->` block is exempt from every trimming rule here**:
-1. **Change Log**: Trim to the most recent 20 entries. Older business changes belong in the Last Updated summary, not the log table.
+1. **Change Log**: now lives in `CODEMAP-changelog.md` / per-module files, not here — trim each to the most recent 20 entries (oldest fold into that file's `Last Updated` summary).
 2. **Call Chains**: If a single flow diagram exceeds 15 nodes, split it into two diagrams (sync vs async) — **unless it carries a `<!-- no-split: ... -->` marker**, in which case leave it whole and trust the recorded reason (only re-evaluate if the underlying flow changed). If a module has > 3 diagrams in total, move that module to a separate `CODEMAP-<module>.md` file and replace with a link.
 3. **Core Business Modules**: Never trim this table — it's the primary navigation anchor. If > 10 modules, split rarely-used ones into a "扩展模块" subsection.
 4. **Task Index**: Keep all entries. If an entry references a deleted file, remove it.
@@ -275,7 +281,7 @@ Example of bad entries:
 
 **Never full-rewrite over human content**: Even when `.claude/CODEMAP.md` is large or stale, do NOT blow the whole file away. Always work incrementally: back up to `.claude/CODEMAP.md.bak`, keep every `<!-- manual -->` block **verbatim**, and re-scan only the auto-generated sections (module table, call chains, dependency graph) around them. If while re-scanning you spot a human-added Pitfall/invariant that isn't yet wrapped in a `<!-- manual -->` block, **wrap it in one rather than letting the re-scan drop it** — don't silently overwrite knowledge that's expensive to recover. If the auto-generated sections themselves have grown unwieldy, split modules into `CODEMAP-<module>.md` rather than deleting.
 
-**Auto-trigger**: The skill should check `.claude/CODEMAP.md` line count on every run and apply trimming before writing.
+**Auto-trigger via script**: On every run, run `scripts/check_size.sh [.claude] [200]` to see which `CODEMAP*.md` files exceed the threshold. For each flagged OVER: move detailed call chains into `CODEMAP-<module>.md`, and keep Change Log entries in `CODEMAP-changelog.md` (single-layer) or the owning `CODEMAP-<module>.md` (two-layer), ≤ 20 per log. The script only measures size — what content moves where is your call from its output, and `<!-- manual -->` blocks always stay put.
 
 ## Tips
 
